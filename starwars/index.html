@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit</title>
+<style>
+  :root { --amber: #ffb35c; --holo: #8fdcff; --ink: #e8f3ff; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000; transform-origin: center; flex: none; }
+  section { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; will-change: transform; }
+
+  /* ---------------------------------------------------------------- the cockpit */
+  #space { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #wash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+          background: radial-gradient(ellipse 60% 55% at 50% 36%, rgba(150,210,255,.38), rgba(90,150,255,.12) 45%, rgba(0,0,0,0) 72%); will-change: opacity; }
+  #cockpit { position: absolute; left: -40px; top: -30px; width: 2000px; height: 1140px; will-change: transform; }
+  #cockpit img { position: absolute; }                                   /* placed by the script (see CK) */
+  #hud { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; will-change: transform; }
+  #clock { position: absolute; left: 404px; top: 58px; color: #e4f2ff; text-shadow: 0 2px 14px rgba(0,0,0,.9), 0 0 18px rgba(120,200,255,.35); }
+  #clock .t { font-size: 96px; font-weight: 200; letter-spacing: .02em; line-height: 1; }
+  #clock .d { margin-top: 12px; font-size: 19px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; opacity: .7; padding-left: 4px; }
+  /* on the monitor in the cockpit's right-hand wall: a box put onto the screen in perspective by the script (CK.screen),
+     its lit face clipped clear of the metal bevel on its left */
+  #clock.screen { left: 0; top: 0; width: 240px; height: 240px; transform-origin: 0 0; color: #b8e3ff; text-shadow: 0 0 9px rgba(110,190,255,.85);
+                  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 23.6% 52.4%);
+                  background: radial-gradient(ellipse 72% 62% at 62% 52%, rgba(90,170,255,.2), rgba(70,140,255,.07) 70%, rgba(70,140,255,.03)); }
+  #clock.screen .t { position: absolute; left: 60px; right: 6px; top: 78px; text-align: center; font-size: 68px; font-weight: 500; letter-spacing: 0;
+                     font-variant-numeric: tabular-nums; }
+  #clock.screen .d { position: absolute; left: 34px; right: 6px; top: 166px; margin: 0; padding: 0; text-align: center; font-size: 25px; font-weight: 600;
+                     letter-spacing: .16em; opacity: .85; }
+
+  /* the apps: destinations out in space, seen through the canopy */
+  #targets { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  .tgt { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform, opacity; }
+  .tgt img { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%); opacity: .8; filter: drop-shadow(0 0 8px rgba(140,210,255,.7)); transition: opacity .3s, filter .3s; }
+  .tgt.on img { opacity: 1; filter: drop-shadow(0 0 14px rgba(255,170,90,.95)) sepia(.45) saturate(1.9) hue-rotate(-14deg) brightness(1.12); }
+  #reticle { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; will-change: transform; }
+  #reticle svg { position: absolute; left: -130px; top: -130px; width: 260px; height: 260px; overflow: visible; filter: drop-shadow(0 0 6px rgba(255,150,60,.7)); }
+  #appname { position: absolute; left: 0; right: 0; top: 590px; text-align: center; font-size: 17px; font-weight: 500; letter-spacing: .34em;
+             text-transform: uppercase; color: #ffd2a0; text-shadow: 0 0 10px rgba(255,160,80,.6); transition: opacity .25s; }
+  /* an app with no logo here: its name */
+  .tgt.word span { position: absolute; left: 0; top: 0; transform: translate(-50%,-50%); white-space: nowrap; font-size: 30px; font-weight: 500;
+                   letter-spacing: .06em; color: #d6ecff; opacity: .8; text-shadow: 0 0 8px rgba(140,210,255,.7); transition: opacity .3s, color .3s; }
+  .tgt.word.on span { opacity: 1; color: #ffd2a0; text-shadow: 0 0 14px rgba(255,170,90,.95); }
+  /* Up in the cockpit: Customise, in the window above the centre pane */
+  #cust { position: absolute; left: 0; right: 0; top: 66px; display: flex; justify-content: center; align-items: center; gap: 14px; opacity: 0;
+          transition: opacity .25s; color: #ffd2a0; font-size: 17px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase;
+          text-shadow: 0 0 10px rgba(255,160,80,.6); }
+  #cust svg { width: 34px; height: 34px; filter: drop-shadow(0 0 6px rgba(255,150,60,.7)); }
+  #cust.on { opacity: 1; }
+
+  /* ---------------------------------------------------------------- the saga: six lightsabers on a rack, one for each film */
+  #saga { transform: translate3d(0,1080px,0); background: #050608 url(img/hall.jpg) 0 0 / 1920px 1080px no-repeat; }    /* a hall in the Jedi Temple */
+  .wash { position: absolute; inset: 0; opacity: 0; pointer-events: none; will-change: opacity; }
+  #plinthGlow { position: absolute; left: 135px; width: 1650px; top: 704px; height: 2px; opacity: 0; will-change: opacity; }   /* the ledge's front edge */
+  .saber { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+  .saber img { position: absolute; transition: filter .35s; filter: brightness(.5); }     /* the unlit ones sit in shadow */
+  .saber.on img { filter: none; }
+  .saber .cradle { position: absolute; left: -22px; top: -10px; width: 44px; height: 10px; border-radius: 0 0 8px 8px;
+                   background: linear-gradient(180deg, #4a4f58, #1d1f24); box-shadow: inset 0 -2px 0 rgba(0,0,0,.4); }
+  .blade { position: absolute; left: -32px; width: 64px; will-change: transform, opacity; transform: scaleY(0); }
+  .blade.up { transform-origin: 50% 100%; }
+  .blade.down { transform-origin: 50% 0; }
+  .blade .glow { position: absolute; left: 12px; right: 12px; top: 0; bottom: 0; border-radius: 22px; background: var(--c); filter: blur(13px); opacity: .85; }
+  .blade .core { position: absolute; left: 26px; width: 12px; top: 3px; bottom: 0; border-radius: 7px; background: #fff;
+                 box-shadow: 0 0 4px #fff, 0 0 10px var(--c), 0 0 22px var(--c), 0 0 48px var(--c); }
+  .blade.down .core { top: 0; bottom: 3px; }
+  .saber .ep { position: absolute; left: -60px; width: 120px; top: 44px; text-align: center; font-size: 17px; font-weight: 500; letter-spacing: .12em;
+               color: rgba(200,212,230,.38); transition: color .35s; }
+  .saber.on .ep { color: rgba(235,242,255,.85); }
+  #sagaTitle { position: absolute; left: 0; right: 0; top: 862px; text-align: center; will-change: opacity; }
+  #sagaTitle .e { font-size: 18px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; color: rgba(225,233,245,.62); }
+  #sagaTitle .t { margin-top: 8px; font-size: 52px; font-weight: 200; letter-spacing: .02em; color: #eef4ff; }
+  #sagaTitle .y { margin-top: 10px; font-size: 20px; font-weight: 400; letter-spacing: .02em; color: rgba(215,225,240,.55); }
+
+  /* ---------------------------------------------------------------- the Mandalorian: a camp at night, Din Djarin and Grogu, bounty pucks */
+  #mando { transform: translate3d(0,2160px,0); background: #05070d; }
+  #camp { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; will-change: transform; }    /* positions below are in the picture's 1920 frame */
+  #camp > img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #fireglow { position: absolute; left: 1032px; top: 430px; width: 560px; height: 520px; border-radius: 50%; will-change: opacity;
+              background: radial-gradient(closest-side, rgba(255,150,60,.30), rgba(255,120,40,.10) 50%, rgba(255,100,30,0)); }
+  #sparks { position: absolute; left: 1232px; top: 360px; width: 160px; height: 340px; }
+  #mshade { position: absolute; inset: 0; pointer-events: none;
+            background: radial-gradient(ellipse 50% 42% at 12% 14%, rgba(4,6,16,.6), rgba(4,6,16,0) 70%); }
+  .puck { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .puck .lens { position: absolute; left: -34px; top: -10px; width: 68px; height: 20px; border-radius: 50%; opacity: 0; will-change: opacity;
+                background: radial-gradient(ellipse, rgba(200,240,255,.95), rgba(90,175,255,.65) 55%, rgba(60,140,255,0) 78%); }
+  .puck .pool { position: absolute; left: -110px; top: -26px; width: 220px; height: 64px; border-radius: 50%; opacity: 0; will-change: opacity;
+                background: radial-gradient(ellipse, rgba(110,195,255,.32), rgba(110,195,255,0) 70%); }
+  .puck .halo { position: absolute; width: 440px; height: 440px; border-radius: 50%; opacity: 0; will-change: opacity;
+                background: radial-gradient(closest-side, rgba(110,190,255,.13), rgba(110,190,255,0)); }
+  .puck .beam { position: absolute; opacity: 0; will-change: opacity; background: linear-gradient(0deg, rgba(160,220,255,.55), rgba(120,200,255,.1)); }
+  .puck .holo { position: absolute; width: 166px; height: 249px; opacity: 0; transform-origin: 50% 100%; will-change: transform, opacity; }
+  .puck .holo img { width: 100%; height: 100%; display: block; }
+  #mtitle { position: absolute; left: 150px; top: 124px; color: #f4ecff; text-shadow: 0 2px 16px rgba(0,0,20,.6); }
+  #mtitle .k { font-size: 18px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; color: rgba(235,228,255,.7); }
+  #mtitle .t { margin-top: 10px; font-size: 64px; font-weight: 200; letter-spacing: .02em; line-height: 1.08; }
+
+  /* ---------------------------------------------------------------- the dark side: Vader on the bridge; through the windows, where each story is */
+  #dark { transform: translate3d(0,3240px,0); background: #000; }
+  #bridge { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; will-change: transform; }   /* positions below are in the picture's 1920 frame */
+  #fg, #spills { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #glass { position: absolute; left: 368px; top: 136px; width: 1568px; height: 468px; will-change: transform; }   /* GL in the script */
+  /* the light from outside, on the room only (masked by the bridge picture itself, so never on the glass) */
+  #spills { pointer-events: none; -webkit-mask: url(img/dark/bridge.png) 0 0 / 1920px 1080px; mask: url(img/dark/bridge.png) 0 0 / 1920px 1080px; }
+  .spill { position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen; will-change: opacity; }
+  #light { position: absolute; left: 352px; top: 0; width: 1568px; height: 916px; pointer-events: none; display: none; }   /* LIGHT in the script */
+  /* only as large as the shadow it casts (under the title): a full-screen layer of mostly nothing still costs the TV a frame's worth of drawing */
+  #dshade { position: absolute; left: 0; top: 620px; width: 920px; height: 460px; pointer-events: none;
+            background: radial-gradient(921.6px 432px at 268.8px 308.8px, rgba(0,0,0,.7), rgba(0,0,0,0) 70%); }
+  #dtitle { position: absolute; left: 150px; top: 806px; color: #eef2f8; text-shadow: 0 2px 16px rgba(0,0,0,.8); }
+  #dtitle .k { font-size: 18px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; color: rgba(225,232,245,.62); }
+  #dtitle .t { margin-top: 10px; font-size: 64px; font-weight: 200; letter-spacing: .02em; line-height: 1.08; }
+  #dtitle .dots { margin-top: 22px; display: flex; gap: 10px; }
+  #dtitle .txt { transition: opacity .22s, transform .4s cubic-bezier(.2,.8,.2,1); }
+  #dtitle .txt.out { opacity: 0; transform: translateX(-28px); }
+  #dtitle .txt.pre { opacity: 0; transform: translateX(36px); transition: none; }
+  #dtitle .dots i { width: 28px; height: 3px; background: rgba(200,210,225,.25); transition: width .35s, background .3s, box-shadow .3s; }
+  #dtitle .dots i.on { width: 56px; background: #ff3b30; box-shadow: 0 0 8px rgba(255,59,48,.8); }
+
+  /* ---------------------------------------------------------------- jumping */
+  #warp { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; opacity: 0; will-change: opacity; }
+  #flash { position: absolute; inset: 0; background: #eaf6ff; opacity: 0; pointer-events: none; will-change: opacity; }
+  #opening { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+             background: #000; opacity: 0; pointer-events: none; text-align: center; }
+  #opening .t { font-size: 58px; font-weight: 200; letter-spacing: .06em; color: #e8f6ff; }
+
+  /* ---------------------------------------------------------------- Customise: the apps in the cockpit, and where the films open */
+  #custom { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: none;
+            background: radial-gradient(ellipse at 50% 22%, #0c1824, #020407 72%); }
+  #custom.open { display: block; }
+  #custom .box { position: absolute; left: 150px; width: 1620px; top: 70px; bottom: 60px; }
+  #custom .h { font-size: 54px; font-weight: 200; letter-spacing: .04em; color: #e8f6ff; }
+  #custom .sub { font-size: 23px; opacity: .7; margin-top: 12px; letter-spacing: .02em; }
+  #custom .lab { margin-top: 34px; font-size: 17px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; color: #ffd2a0; }
+  #custom .grid { margin-top: 16px; height: 412px; overflow: hidden; padding: 2px 6px; margin-left: -6px; }
+  #custom .rows { display: grid; grid-template-columns: repeat(6, 254px); gap: 18px; transition: transform .25s; }
+  #custom .tile { position: relative; height: 124px; border-radius: 12px; background: rgba(143,220,255,.05); border: 2px solid rgba(143,220,255,.16);
+                  overflow: hidden; transition: transform .15s, box-shadow .15s; }
+  #custom .tile img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; opacity: .8; }
+  #custom .tile img.icon { left: 50%; top: 14px; width: 60px; height: 60px; margin-left: -30px; object-fit: contain; opacity: 1; }
+  #custom .tile .t { position: absolute; left: 14px; right: 14px; bottom: 10px; font-size: 20px; white-space: nowrap; overflow: hidden;
+                     text-overflow: ellipsis; text-align: center; }
+  #custom .tile.banner .t { left: 0; right: 0; bottom: 0; padding: 22px 14px 8px; font-size: 17px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.8)); }
+  #custom .tile .n { position: absolute; right: 10px; top: 9px; width: 34px; height: 34px; border-radius: 50%; background: #ffb35c; color: #1a1006;
+                     font-size: 20px; font-weight: 600; line-height: 34px; text-align: center; display: none; }
+  #custom .tile.sel { border-color: #ffb35c; background: rgba(255,179,92,.1); }
+  #custom .tile.sel .n { display: block; }
+  #custom .films { margin-top: 16px; display: flex; gap: 14px; flex-wrap: wrap; }
+  #custom .pill, #custom .btn { padding: 12px 22px; border-radius: 40px; border: 2px solid rgba(143,220,255,.28); font-size: 20px; transition: transform .15s, box-shadow .15s; }
+  #custom .pill.sel { background: #ffb35c; color: #1a1006; border-color: #ffb35c; }
+  #custom .pill i { font-style: normal; opacity: .6; }
+  #custom .btns { position: absolute; left: 0; bottom: 0; display: flex; gap: 22px; }
+  #custom .btn { font-size: 23px; padding: 14px 44px; border-color: rgba(143,220,255,.45); }
+  #custom .foc { box-shadow: 0 0 0 4px #8fdcff, 0 0 30px rgba(143,220,255,.45); transform: scale(1.04); }
+  #custom .note { position: absolute; right: 0; bottom: 18px; font-size: 22px; opacity: .8; color: #ffd2a0; }
+
+  /* ---- the TV (window.TV or ?tv): no blend modes (the spills sit in their own masked group, so screen over nothing
+     is the same as plain transparency there) */
+  body.tv .spill { mix-blend-mode: normal; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ============================================================ THE COCKPIT -->
+  <section id="home">
+    <canvas id="space" width="1920" height="1080"></canvas>
+    <div id="targets"></div>
+    <div id="reticle"><svg viewBox="-130 -130 260 260">
+      <path stroke="#ffae55" fill="none" stroke-linecap="square" stroke-width="3" d="M-64 -40 V-64 H-40 M40 -64 H64 V-40 M64 40 V64 H40 M-40 64 H-64 V40"/>
+    </svg></div>
+    <div id="appname"></div>
+    <div id="wash"></div>
+    <div id="cockpit"><img id="frame" alt=""></div>
+    <div id="hud">
+      <div id="clock"><div class="t"></div><div class="d"></div></div>
+      <div id="cust"><svg viewBox="0 0 24 24" fill="none" stroke="#ffae55" stroke-width="1.6" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8l1.6 2.2 2.7-.6.6 2.7 2.4 1.3-1 2.6 1 2.6-2.4 1.3-.6 2.7-2.7-.6L12 21.2l-1.6-2.2-2.7.6-.6-2.7-2.4-1.3 1-2.6-1-2.6 2.4-1.3.6-2.7 2.7.6z"/></svg>Customise</div>
+    </div>
+  </section>
+
+  <!-- ============================================================ THE SAGA -->
+  <section id="saga">
+    <div id="washes"></div>
+    <div id="plinthGlow"></div>
+    <div id="sabers"></div>
+    <div id="sagaTitle"><div class="e"></div><div class="t"></div><div class="y"></div></div>
+  </section>
+
+  <!-- ============================================================ THE MANDALORIAN -->
+  <section id="mando">
+    <div id="camp">
+      <img src="img/mando/camp.jpg" alt="">
+      <div id="fireglow"></div>
+      <canvas id="sparks" width="160" height="340"></canvas>
+      <div id="pucks"></div>
+    </div>
+    <div id="mshade"></div>
+    <div id="mtitle"><div class="k"></div><div class="t"></div></div>
+  </section>
+
+  <!-- ============================================================ THE DARK SIDE -->
+  <section id="dark">
+    <div id="bridge">
+      <canvas id="glass" width="1568" height="468"></canvas>
+      <img id="fg" src="img/dark/bridge.png" alt="">
+      <div id="spills"></div>
+      <canvas id="light" width="784" height="458"></canvas>
+    </div>
+    <div id="dshade"></div>
+    <div id="dtitle"><div class="txt"><div class="k"></div><div class="t"></div></div><div class="dots"></div></div>
+  </section>
+
+  <canvas id="warp" width="1920" height="1080"></canvas>
+  <div id="flash"></div>
+  <div id="opening"><div class="t"></div></div>
+
+  <!-- ============================================================ CUSTOMISE (Up in the cockpit) -->
+  <div id="custom"><div class="box">
+    <div class="h">Customise your cockpit</div>
+    <div class="sub">Pick up to six apps for the cockpit, in the order you want them, then where the films and series open. Up in the cockpit brings you back here.</div>
+    <div class="lab">The apps</div>
+    <div class="grid"><div class="rows"></div></div>
+    <div class="lab">The films and series open in</div>
+    <div class="films"></div>
+    <div class="btns"><div class="btn">Done</div><div class="btn">Start again</div></div>
+    <div class="note"></div>
+  </div></div>
+</div>
+
+<script src="config.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = x => x * x * (3 - 2 * x);
+const spring = (x, k, z) => ({ x, v: 0, k, z });
+function step(s, target, dt) { s.v += (-s.k * (s.x - target) - 2 * s.z * Math.sqrt(s.k) * s.v) * dt; s.x += s.v * dt; return s.x; }
+const hash = k => (location.hash.match(new RegExp(k + "=([0-9.]+)")) || [])[1];
+const css = (el, prop, v) => { if (el["_" + prop] !== v) { el.style[prop] = v; el["_" + prop] = v; } };
+const W = 1920, H = 1080;
+const TVMODE = !!window.TV || /[?&]tv\b/.test(location.search);           // the TV app (starwars-tv), or ?tv to preview its look
+if (TVMODE) document.body.classList.add("tv");
+const tap = (el, fn) => TVMODE || el.addEventListener("click", fn);      // no click targets on the TV: its WebView draws a focus box on them
+const esc = x => String(x).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ================================================================ settings: the apps in the cockpit and where the films open
+// config.js gives the starting point; the Customise panel's choices are kept by the TV app (and in the page's storage when
+// previewing in a browser) and win over it.
+const DEFAULTS = window.STARWARS || { dock: [], films: "search", links: {} };
+const HAS_TV = !!window.TV;
+// a browser preview has no TV to ask: these stand in for its apps and HDMI ports
+const SIM = {
+  apps: [["com.amazon.amazonvideo.livingroom", "Prime Video"], ["com.apple.atve.androidtv.appletv", "Apple TV"], ["com.disney.disneyplus", "Disney+"],
+         ["in.startv.hotstar", "JioHotstar"], ["com.wbd.stream", "Max"], ["com.netflix.ninja", "Netflix"], ["com.plexapp.android", "Plex"],
+         ["com.spotify.tv.android", "Spotify"], ["com.google.android.youtube.tv", "YouTube"], ["com.android.tv.settings", "Settings", false],
+         ["com.mediatek.factorymenu", "Factory Menu", false]].map(([pkg, label, media]) => ({ pkg, label, media: media !== false })),
+  inputs: [{ id: "hdmi1", label: "HDMI 1" }, { id: "hdmi3", label: "PlayStation 5 · HDMI 3" }],
+};
+const parse = (j, d) => { try { return JSON.parse(j) || d; } catch (e) { return d; } };
+const tvApps = () => HAS_TV ? parse(TV.apps(), []) : SIM.apps;
+const tvInputs = () => HAS_TV ? parse(TV.inputs(), []) : SIM.inputs;
+const inputMatch = (name, inp) => inp.id === name || inp.label.toLowerCase().includes(name.toLowerCase()) ||
+                                  (/playstation|\bps[345]\b/i.test(name) && /playstation|\bps[345]\b/i.test(inp.label));
+const tvHas = pkg => HAS_TV ? TV.has(pkg) : pkg.startsWith("input:") ? SIM.inputs.some(i => inputMatch(pkg.slice(6), i)) : SIM.apps.some(a => a.pkg === pkg);
+function loadSettings() {
+  let j = HAS_TV ? TV.loadConfig() : "";
+  if (!j) try { j = localStorage.getItem("starwars") || ""; } catch (e) { }
+  return j ? parse(j, null) : null;
+}
+function saveSettings() {
+  const j = JSON.stringify(settings);
+  if (HAS_TV) TV.saveConfig(j);
+  try { localStorage.setItem("starwars", j); } catch (e) { }
+}
+const firstRun = !loadSettings() && DEFAULTS.askOnFirstRun !== false;      // config.js already set up for this TV: don't ask
+const settings = Object.assign({ dock: DEFAULTS.dock, films: DEFAULTS.films }, loadSettings() || {});
+// two cockpits: 1 from the back of the cockpit (img/cockpit.png), 2 from the pilots' seats (img/cockpit2.png, shown 15% larger,
+// more canopy and less console). #cockpit2 in the address, or C on a keyboard, switches. pane: the centre pane in the picture.
+const CK = /cockpit2/.test(location.hash) ? { src: "img/cockpit2.png", z: 1.15, cy: 486, pane: { x: 959, y: 525 } }
+                                          : { src: "img/cockpit.png", z: 1, cy: 540, pane: { x: 958, y: 514 },
+                                              screen: [[2022.5, 901.7], [2101.7, 933.3], [2073.3, 1019.2], [1995.8, 973.3]] };   // the monitor in the right-hand wall (TL TR BR BL, in the picture's pixels)
+const OVER = 1.0208, CZ = CK.z * OVER;                                     // a touch larger than the screen, so the sway never shows an edge
+const PANE = { x: 960 + (CK.pane.x - 960) * CZ, y: CK.cy + (CK.pane.y - CK.cy) * CZ };   // the ship flies at what's in the centre pane
+
+// ================================================================ noise (for the planets and the nebula)
+const PERM = new Uint8Array(512);
+{ const p = [...Array(256).keys()]; let s = 7;
+  for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [p[i], p[j]] = [p[j], p[i]]; }
+  for (let i = 0; i < 512; i++) PERM[i] = p[i & 255]; }
+const hv = (x, y, z) => PERM[(PERM[(PERM[x & 255] + y) & 255] + z) & 255] / 255;
+function noise3(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi, u = ease(xf), v = ease(yf), w = ease(zf);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(hv(xi, yi, zi), hv(xi + 1, yi, zi), u), l(hv(xi, yi + 1, zi), hv(xi + 1, yi + 1, zi), u), v),
+           l(l(hv(xi, yi, zi + 1), hv(xi + 1, yi, zi + 1), u), l(hv(xi, yi + 1, zi + 1), hv(xi + 1, yi + 1, zi + 1), u), v), w);
+}
+function fbm(x, y, z, o = 5) { let a = 0, f = 1, amp = .5; for (let i = 0; i < o; i++) { a += amp * noise3(x * f, y * f, z * f); f *= 2.03; amp *= .5; } return a; }
+const mix = (c1, c2, t) => c1.map((c, i) => c + (c2[i] - c) * t);
+function ramp(stops, t) {
+  t = clamp(t, 0, 1);
+  for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [a, ca] = stops[i - 1], [b, cb] = stops[i]; return mix(ca, cb, (t - a) / (b - a)); }
+  return stops[stops.length - 1][1];
+}
+
+// ================================================================ planets: lit spheres, rendered once each
+// (half size, drawn at twice the size: a planet this soft doesn't need the pixels)
+const PR = 330;
+const PLANETS = [
+  { name: "desert", atm: [255, 190, 130], surface(n, d, y) { return ramp([[0, [96, 52, 24]], [.42, [176, 112, 58]], [.62, [214, 160, 98]], [1, [240, 206, 150]]], n + Math.sin(y * 34 + d * 7) * .05); } },
+  { name: "ice", atm: [170, 215, 255], surface(n, d, y) { const c = ramp([[0, [96, 122, 150]], [.45, [178, 200, 222]], [.7, [222, 234, 245]], [1, [250, 252, 255]]], n);
+      return Math.abs(d - .5) < .012 ? mix(c, [70, 92, 120], .7) : c; } },
+  { name: "forest", atm: [150, 205, 255], surface(n, d, y) {
+      if (n < .47) return ramp([[0, [10, 30, 64]], [.47, [28, 74, 120]]], n / .47 * .47);
+      const land = ramp([[.47, [52, 86, 44]], [.6, [34, 66, 34]], [.75, [70, 92, 52]], [1, [120, 120, 100]]], n);
+      return d > .62 ? mix(land, [236, 242, 248], clamp((d - .62) * 4, 0, .85)) : land; } },
+];
+function renderPlanet(P) {
+  const atmW = 46, size = PR * 2 + atmW * 2, c = document.createElement("canvas"); c.width = c.height = size;
+  const g = c.getContext("2d"), img = g.createImageData(size, size), D = img.data;
+  const L = [-.62, -.4, .68], ln = Math.hypot(...L); L[0] /= ln; L[1] /= ln; L[2] /= ln;
+  for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+    const x = (px - size / 2) / PR, y = (py - size / 2) / PR, r2 = x * x + y * y, r = Math.sqrt(r2);
+    if (r >= 1 + 1 / PR) continue;
+    const edge = clamp((1 - r) * PR + .5, 0, 1);                        // a soft rim, so it stays smooth when drawn larger
+    const z = Math.sqrt(Math.max(0, 1 - r2));
+    const n = fbm(x * 2.2 + 11, y * 2.2, z * 2.2, 5), d = fbm(x * 4 + 3, y * 4 + 7, z * 4, 4);
+    let col = P.surface(n, d, y);
+    const lit = Math.max(0, x * L[0] + y * L[1] + z * L[2]);
+    const k = .035 + .965 * Math.pow(ease(clamp(lit * 1.25, 0, 1)), 1.1);
+    const rim = Math.pow(1 - z, 3) * .55 * clamp(lit * 2 + .2, 0, 1);       // haze toward the limb on the day side
+    col = mix(col.map(v => v * k), P.atm, rim);
+    const i = (py * size + px) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255 * edge;
+  }
+  g.putImageData(img, 0, 0);
+  // the atmosphere: a soft glow round the lit edge
+  const cx = size / 2;
+  g.globalCompositeOperation = "destination-over";
+  const rg = g.createRadialGradient(cx, cx, PR * .96, cx, cx, PR + atmW);
+  rg.addColorStop(0, `rgba(${P.atm},.55)`); rg.addColorStop(.35, `rgba(${P.atm},.18)`); rg.addColorStop(1, `rgba(${P.atm},0)`);
+  g.fillStyle = rg; g.beginPath(); g.arc(cx, cx, PR + atmW, 0, 6.2832); g.fill();
+  g.globalCompositeOperation = "destination-in";                       // only on the lit side
+  const lg = g.createLinearGradient(0, 0, size, size * .9);
+  lg.addColorStop(0, "rgba(0,0,0,1)"); lg.addColorStop(.55, "rgba(0,0,0,1)"); lg.addColorStop(.78, "rgba(0,0,0,.25)"); lg.addColorStop(1, "rgba(0,0,0,.25)");
+  g.fillStyle = lg; g.fillRect(0, 0, size, size);
+  g.globalCompositeOperation = "source-over";
+  P.img = c;
+}
+
+// ================================================================ the nebula and the far stars (one picture, drifting very slowly)
+const NEB = document.createElement("canvas"); NEB.width = 2700; NEB.height = 1700;
+{
+  const g = NEB.getContext("2d"), w = 575, h = 350, small = document.createElement("canvas"); small.width = w; small.height = h;
+  const s = small.getContext("2d"), img = s.createImageData(w, h), D = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const n = fbm(x / 120, y / 120, .5, 5), m = fbm(x / 70 + 9, y / 70, 2.5, 4);
+    const band = Math.exp(-Math.pow((y - h * .32 - (x - w / 2) * .28) / 95, 2));           // a faint diagonal band of dust
+    const v = Math.pow(clamp((n - .38) * 2.2, 0, 1), 2.2) * (.35 + band * .9);
+    const col = mix([40, 30, 90], [40, 120, 160], clamp(m * 1.5 - .3, 0, 1));
+    const i = (y * w + x) * 4; D[i] = col[0] * v; D[i + 1] = col[1] * v; D[i + 2] = col[2] * v; D[i + 3] = 255;
+  }
+  s.putImageData(img, 0, 0);
+  g.imageSmoothingQuality = "high"; g.drawImage(small, 0, 0, NEB.width, NEB.height);
+  for (let i = 0; i < 1700; i++) {                                   // the far stars don't move with the ship
+    const x = Math.random() * NEB.width, y = Math.random() * NEB.height, b = Math.pow(Math.random(), 3);
+    g.fillStyle = `rgba(${200 + b * 55},${210 + b * 45},255,${.25 + b * .7})`; g.fillRect(x, y, b > .85 ? 2 : 1.2, b > .85 ? 2 : 1.2);
+  }
+}
+
+// ================================================================ the near stars (flying past) and the jump
+const space = $("#space").getContext("2d");
+const F = 560, BASE = .045;                       // focal length; cruising speed (depth per second)
+const stars = Array.from({ length: 900 }, () => newStar(Math.random()));
+function newStar(z) {
+  const t = Math.random();
+  return { x: (Math.random() * 2 - 1) * 1.9, y: (Math.random() * 2 - 1) * 1.15, z: z || 1, b: .35 + Math.random() * .65,
+           col: t < .12 ? [255, 214, 170] : t < .3 ? [180, 210, 255] : [235, 242, 255] };
+}
+const ship = { speed: BASE, boost: 0, dist: 0, planet: parseInt(hash("planet") || "0") % PLANETS.length, arrive: 1, jump: 0 };
+let jumping = false, jumpT = 0, jumpWhat = null, back = null;     // opening something: the jump, and the drop back out
+function drawSpace(dt, t, sway) {
+  const g = space, sp = ship.speed;
+  g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+  // the nebula drifts a little with the ship, and dims as the stars stretch
+  const nd = clamp(1 - (sp - BASE) * .25, .25, 1);
+  g.globalAlpha = nd;
+  g.drawImage(NEB, -390 + view.x + sway.x * 1.5 - ship.dist * 4 % 40, -310 + sway.y * 1.5);
+  g.globalAlpha = 1;
+  // the planet, low on the right: slides away as we speed up, and grows in after a jump
+  const P = PLANETS[ship.planet];
+  if (P.img) {
+    const a = ease(clamp(ship.arrive, 0, 1)), sc = (1.62 * (.5 + .5 * a)) * (1 - clamp(ship.boost, 0, 1) * .03);
+    const s = P.img.width * sc, px = 1560 + view.x * 1.3 + sway.x * 2 + (1 - a) * 260, py = 860 + sway.y * 2 + (1 - a) * 160;
+    g.globalAlpha = clamp(a * 1.4, 0, 1) * clamp(1 - ship.jump * 1.5, 0, 1) * .92;
+    g.imageSmoothingQuality = "high"; g.drawImage(P.img, px - s / 2, py - s / 2, s, s);
+    g.globalAlpha = 1;
+  }
+  // the stars: each a line from where it was a moment ago to where it is now, so speed draws them out into streaks
+  g.globalCompositeOperation = "lighter";
+  const tail = Math.min(.6, Math.max(0, sp - BASE * .9) * .095) + .0007, vx = heading.x + sway.x * 3, vy = heading.y + sway.y * 3;
+  for (const s of stars) {
+    s.z -= sp * dt;
+    if (s.z <= .03) { Object.assign(s, newStar(1)); continue; }
+    const x1 = vx + s.x / s.z * F, y1 = vy + s.y / s.z * F;
+    if (x1 < -200 || x1 > W + 200 || y1 < -200 || y1 > H + 200) { Object.assign(s, newStar(1)); continue; }
+    const z0 = Math.min(1.25, s.z + tail), x0 = vx + s.x / z0 * F, y0 = vy + s.y / z0 * F;
+    const near = clamp(1.15 - s.z, .08, 1), a = s.b * near * clamp(.35 + sp * 2, .35, 1);
+    const blue = clamp(ship.jump * 1.4, 0, 1), col = mix(s.col, [170, 215, 255], blue);
+    g.strokeStyle = `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a.toFixed(3)})`;
+    g.lineWidth = clamp(.55 / s.z * .6, .7, 3.2);
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1 + .01, y1 + .01); g.stroke();
+  }
+  // deep in the jump: a glow down the tunnel
+  if (ship.jump > .02) {
+    const rg = g.createRadialGradient(vx, vy, 0, vx, vy, 900);
+    rg.addColorStop(0, `rgba(210,235,255,${.55 * ship.jump})`); rg.addColorStop(.25, `rgba(120,170,255,${.22 * ship.jump})`); rg.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  }
+  g.globalCompositeOperation = "source-over";
+}
+
+// ================================================================ the apps: star systems ahead, seen through the canopy
+// the picked one sits in the centre pane; the others are a step apart on a shallow arc, so each lands in a pane of its own.
+// The apps come from the settings (up to six); those with a logo here show it, any other shows its name.
+const LOGOS = {
+  "com.netflix.ninja": { f: "netflix", h: 50 }, "com.amazon.amazonvideo.livingroom": { f: "prime", w: 112 }, "in.startv.hotstar": { f: "jiohotstar", h: 56 },
+  playstation: { f: "ps5", w: 66 },                                                    // an HDMI port with a PlayStation on it
+  "com.google.android.youtube.tv": { f: "youtube", w: 62 }, "com.apple.atve.androidtv.appletv": { f: "appletv", h: 50 },
+};
+const logoFor = e => LOGOS[e.pkg] || (e.pkg.startsWith("input:") && /playstation|\bps[345]\b/i.test(e.pkg + " " + e.label) ? LOGOS.playstation : null);
+const SLOT = 210 * CK.z, arcY = d => PANE.y - 150 * CK.z * (1 - Math.exp(-Math.abs(d) * .8));
+let APPS = [], marks = [];
+function buildMarks() {
+  APPS = settings.dock.filter(e => tvHas(e.pkg)).slice(0, 6).map(e => Object.assign({ n: e.label, target: e.pkg }, logoFor(e)));
+  if (!APPS.length) APPS = [{ n: "Customise", target: "customise" }];         // nothing chosen yet
+  $("#targets").innerHTML = "";
+  marks = APPS.map((a, i) => {
+    const m = document.createElement("div"); m.className = "tgt" + (a.f ? "" : " word");
+    m.innerHTML = a.f ? `<img src="img/logos/icon_${a.f}.png" alt="" style="${a.h ? "height:" + a.h : "width:" + a.w}px">` : `<span>${esc(a.n)}</span>`;
+    $("#targets").appendChild(m);
+    if (!TVMODE) m.style.pointerEvents = "auto";
+    tap(m, () => (app === i ? openApp() : focusApp(i)));
+    return { el: m, bob: Math.random() * 6 };
+  });
+  app = clamp(app, 0, APPS.length - 1);
+  marks[app].el.classList.add("on");
+}
+{ const f = $("#frame"); f.src = CK.src;
+  Object.assign(f.style, { left: 40 + 960 - 960 * CZ + "px", top: 30 + CK.cy - CK.cy * CZ + "px", width: 1920 * CZ + "px", height: 1080 * CZ + "px" });
+  $("#appname").style.top = PANE.y + 76 * CK.z + "px";                     // the picked app's name, low in the centre pane
+  if (CK.screen) {                                                          // the clock on the cockpit's monitor, moving with the cockpit
+    const k = 1920 * CZ / 2560, x0 = 40 + 960 - 960 * CZ, y0 = 30 + CK.cy - CK.cy * CZ;
+    const c = $("#clock"); c.classList.add("screen"); $("#cockpit").appendChild(c);
+    c.style.transform = onto(240, 240, CK.screen.map(([x, y]) => [x0 + x * k, y0 + y * k]));
+  } }
+// the CSS transform that puts a w x h box onto a four-cornered shape (TL, TR, BR, BL), in perspective
+function onto(w, h, [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]) {
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+  const den = dx1 * dy2 - dx2 * dy1, g = (dx3 * dy2 - dx2 * dy3) / den, k = (dx1 * dy3 - dx3 * dy1) / den;
+  const m = [(x1 - x0 + g * x1) / w, (y1 - y0 + g * y1) / w, 0, g / w, (x3 - x0 + k * x3) / h, (y3 - y0 + k * y3) / h, 0, k / h, 0, 0, 1, 0, x0, y0, 0, 1];
+  return `matrix3d(${m.map(v => +v.toFixed(7)).join(",")})`;
+}
+let app = parseInt(hash("app") || "2");
+buildMarks();
+const pan = spring(app, 9, .95);                                            // which way the ship is turned (between destinations)
+const view = { x: 0, y: 0 };                                                // how far the far sky has turned with it
+const headS = { x: spring(PANE.x, 12, .9), y: spring(PANE.y, 12, .9) }, heading = { x: PANE.x, y: PANE.y };   // where the stars stream from
+const ret = { x: PANE.x, y: PANE.y, vx: 0, vy: 0, scale: spring(1, 160, .6) };
+
+const cam = { x: spring(0, 40, .7), y: spring(0, 40, .55), r: spring(0, 50, .35), z: spring(0, 30, .5) };
+function focusApp(i) {
+  i = clamp(i, 0, APPS.length - 1);
+  if (i === app) { cam.r.v += (i ? 1 : -1) * .5; ret.scale.v += 2; return; }
+  const dir = Math.sign(i - app);
+  marks[app].el.classList.remove("on"); app = i; marks[app].el.classList.add("on");
+  // a short burst of speed toward the new destination: the stars streak, the ship banks into the turn and the cockpit lurches
+  ship.boost = 1;
+  cam.y.v += 55; cam.z.v -= .05; cam.r.v += dir * 1.8; cam.x.v -= dir * 24;
+  ret.scale.x = 1.5; ret.scale.v = 0;
+  navText();
+}
+function navText() {
+  css($("#appname"), "opacity", "0");
+  clearTimeout(navText.t); navText.t = setTimeout(() => { $("#appname").textContent = APPS[app].f ? APPS[app].n : ""; css($("#appname"), "opacity", "1"); }, 180);   // (a name already shows itself)
+}
+navText();
+function updateTargets(dt, t) {
+  const p = step(pan, app, dt);
+  view.x = -(p - (APPS.length - 1) / 2) * SLOT * .4; view.y = 0;
+  const tx = PANE.x + (app - p) * SLOT, ty = arcY(app - p);                  // where the picked one is right now
+  heading.x = step(headS.x, tx, dt); heading.y = step(headS.y, ty, dt);
+  marks.forEach((m, i) => {
+    const d = i - p, x = PANE.x + d * SLOT, y = arcY(d) + Math.sin(t * .7 + m.bob) * 3;
+    css(m.el, "transform", `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${(i === app ? 1.12 : .9).toFixed(3)})`);
+    css(m.el, "opacity", (clamp(1 - ship.jump * 1.4, 0, 1) * (i === app ? 1 : .62)).toFixed(3));
+  });
+  // the reticle slides over and settles on it
+  const k = 90, d = 2 * Math.sqrt(k) * .8;
+  ret.vx += (k * (tx - ret.x) - d * ret.vx) * dt; ret.vy += (k * (ty - ret.y) - d * ret.vy) * dt;
+  ret.x += ret.vx * dt; ret.y += ret.vy * dt;
+  const sc = step(ret.scale, 1, dt) * (1 + ship.jump * .6);
+  css($("#reticle"), "transform", `translate3d(${ret.x.toFixed(1)}px, ${ret.y.toFixed(1)}px, 0) scale(${sc.toFixed(3)})`);
+  css($("#reticle"), "opacity", clamp(1 - ship.jump * 1.6, 0, 1).toFixed(3));
+  css($("#appname"), "transform", `translate3d(0, ${(-ship.jump * 30).toFixed(1)}px, 0)`);
+}
+
+// ================================================================ the HUD on the glass
+function clock() {
+  const d = new Date();
+  $("#clock .t").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M/i, "");
+  $("#clock .d").textContent = CK.screen ? ["weekday", "day", "month"].map(k => d.toLocaleDateString([], { [k]: k === "day" ? "numeric" : "short" })).join(" ")
+                                          : d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+}
+clock(); setInterval(clock, 5000);
+
+// ================================================================ the saga: a lightsaber for each film, the prequels and the originals
+// the selected one rises out of its cradle and ignites, and the hall takes its colour
+const SABERS = [
+  { key: "maul", ep: "I", t: "The Phantom Menace", who: "Darth Maul's lightsaber", c: "255,46,46", dbl: true },
+  { key: "yoda", ep: "II", t: "Attack of the Clones", who: "Yoda's lightsaber", c: "60,255,100", bl: .7 },
+  { key: "windu", ep: "III", t: "Revenge of the Sith", who: "Mace Windu's lightsaber", c: "184,84,255" },
+  { key: "kenobi", ep: "IV", t: "A New Hope", who: "Obi-Wan Kenobi's lightsaber", c: "64,140,255" },
+  { key: "vader", ep: "V", t: "The Empire Strikes Back", who: "Darth Vader's lightsaber", c: "255,46,46" },
+  { key: "luke6", ep: "VI", t: "Return of the Jedi", who: "Luke Skywalker's lightsaber", c: "60,255,100" },
+];
+const HILT = { maul: [45, 470], yoda: [58.5, 205], windu: [55, 300], kenobi: [52.5, 300], vader: [72, 300], luke6: [54, 300] };   // from img/hilts/hilts.json
+const RACK_Y = 692, HS = .8, LIFT = 46, TIP = 40;                                // the ledge's top (img/hall.jpg); hilt scale; how high it rises; where the blades end
+const sabers = SABERS.map((f, i) => {
+  const x = 960 + (i - 2.5) * 236 + (i < 3 ? -22 : 22);                     // a little gap between the trilogies
+  const [w, h] = HILT[f.key].map(v => v * HS);
+  const len = f.bl ? Math.round((RACK_Y - 300 * HS - LIFT - TIP) * f.bl) : RACK_Y - h - LIFT - TIP;     // Yoda's blade is short too
+  const el = document.createElement("div"); el.className = "saber"; el.style.setProperty("--c", `rgb(${f.c})`);
+  el.innerHTML = `<div class="blade up" style="top:${-h - len}px;height:${len}px"><div class="glow"></div><div class="core"></div></div>` +
+    (f.dbl ? `<div class="blade down" style="top:0;height:${len}px"><div class="glow"></div><div class="core"></div></div>` : "") +
+    `<img src="img/hilts/${f.key}.png" alt="" style="left:${-w / 2}px;top:${-h}px;width:${w}px;height:${h}px"><div class="cradle"></div><div class="ep">${f.ep}</div>`;
+  $("#sabers").appendChild(el);
+  tap(el, () => (sel === i ? openFilm() : pickSaber(i)));
+  const wash = document.createElement("div"); wash.className = "wash";
+  wash.style.background = `radial-gradient(ellipse 820px 640px at ${x}px 400px, rgba(${f.c},.34), rgba(${f.c},.12) 45%, rgba(${f.c},0) 78%)`;
+  $("#washes").appendChild(wash);
+  return { el, x, wash, lift: spring(0, 60, .55), ign: 0, ups: el.querySelectorAll(".blade"), cores: el.querySelectorAll(".core"), ep: el.querySelector(".ep") };
+});
+let sel = clamp(parseInt(hash("f") || "0"), 0, SABERS.length - 1), selAt = 0;
+function pickSaber(i) {
+  i = clamp(i, 0, SABERS.length - 1);
+  if (i === sel) { sabers[i].lift.v -= 120; return; }
+  sabers[sel].el.classList.remove("on"); sel = i; sabers[sel].el.classList.add("on"); selAt = 0;
+  sagaText();
+}
+function sagaText() {
+  const f = SABERS[sel];
+  $("#sagaTitle .e").textContent = "Episode " + f.ep;
+  $("#sagaTitle .t").textContent = f.t;
+  $("#sagaTitle .y").textContent = f.who;
+  $("#plinthGlow").style.background = `linear-gradient(90deg, rgba(${f.c},0), rgba(${f.c},.9) ${(sabers[sel].x - 135) / 16.5}%, rgba(${f.c},0))`;
+}
+sabers[sel].el.classList.add("on"); sagaText();
+function saga(dt, t) {
+  selAt += dt;
+  sabers.forEach((s, i) => {
+    const on = i === sel;
+    const y = step(s.lift, on ? -LIFT : 0, dt) + (on ? Math.sin(t * 1.4) * 4 : 0);      // held up by the Force, drifting a little
+    css(s.el, "transform", `translate3d(${s.x}px, ${(RACK_Y + y).toFixed(1)}px, 0)`);
+    css(s.ep, "transform", `translate3d(0, ${(-y).toFixed(1)}px, 0)`);                 // the numeral stays on the plinth
+    // it ignites once it's clear of the cradle; the others shut off at once
+    const want = on && selAt > .3 ? 1 : 0;
+    s.ign = want ? Math.min(1, s.ign + dt / .32) : Math.max(0, s.ign - dt / .16);
+    const k = want ? 1 - Math.pow(1 - s.ign, 3) : s.ign;
+    const hum = 1 + Math.sin(t * 47 + i) * .025 + Math.sin(t * 13.3) * .015;
+    s.ups.forEach(b => { css(b, "transform", `scaleY(${k.toFixed(3)}) scaleX(${hum.toFixed(3)})`); css(b, "opacity", k > .001 ? "1" : "0"); });
+    s.cores.forEach(c => css(c, "opacity", (.92 + .08 * Math.sin(t * 61 + i * 2)).toFixed(3)));
+    css(s.wash, "opacity", (k * (.9 + .1 * Math.sin(t * 23))).toFixed(3));
+  });
+  css($("#plinthGlow"), "opacity", (sabers[sel].ign * .8).toFixed(3));
+}
+
+// ================================================================ the Mandalorian: the series and the film as the four bounty pucks on the stone by the fire
+// the picked one lights up and projects its hologram
+const MANDO = [
+  { k: "s1", kick: "The Mandalorian", t: "Season 1", open: "The Mandalorian, Season 1" },
+  { k: "s2", kick: "The Mandalorian", t: "Season 2", open: "The Mandalorian, Season 2" },
+  { k: "s3", kick: "The Mandalorian", t: "Season 3", open: "The Mandalorian, Season 3" },
+  { k: "film", kick: "2026", t: "The Mandalorian<br>and Grogu", open: "The Mandalorian and Grogu" },
+];
+const PUCK = [[362, 816], [494, 818], [624, 820], [757, 821]];             // the tops of the pucks in camp.jpg (1920 frame)
+const HOLO = { w: 166, h: 249, lift: 36, maxX: 662 };                       // the hologram; its centre stays left of Grogu's pram
+const pucks = MANDO.map((m, i) => {
+  const [px, py] = PUCK[i], hx = Math.min(px, HOLO.maxX) - px;              // where the hologram's centre is, from its puck
+  const bl = Math.min(-10, hx - HOLO.w / 2), br = Math.max(10, hx + HOLO.w / 2);
+  const poly = `polygon(${-10 - bl}px 100%, ${10 - bl}px 100%, ${hx + HOLO.w / 2 - bl}px 0, ${hx - HOLO.w / 2 - bl}px 0)`;
+  const el = document.createElement("div"); el.className = "puck";
+  el.style.transform = `translate3d(${px}px, ${py}px, 0)`;
+  el.innerHTML = `<div class="halo" style="left:${hx - 220}px;top:${-HOLO.lift - HOLO.h / 2 - 220}px"></div><div class="pool"></div>` +
+    `<div class="beam" style="left:${bl}px;top:${-HOLO.lift}px;width:${br - bl}px;height:${HOLO.lift}px;clip-path:${poly}"></div>` +
+    `<div class="holo" style="left:${hx - HOLO.w / 2}px;top:${-HOLO.lift - HOLO.h}px"><img src="img/mando/holo-${m.k}.png" alt=""></div><div class="lens"></div>`;
+  $("#pucks").appendChild(el);
+  tap(el, () => (pk === i ? openMando() : pickPuck(i)));
+  return { el, holo: el.querySelector(".holo"), beam: el.querySelector(".beam"), pool: el.querySelector(".pool"), lens: el.querySelector(".lens"),
+           halo: el.querySelector(".halo"), on: 0, glitch: 0 };
+});
+let pk = clamp(parseInt(hash("m") || "0"), 0, MANDO.length - 1), pkAt = 0;
+function pickPuck(i) {
+  i = clamp(i, 0, MANDO.length - 1);
+  if (i === pk) return;
+  pucks[pk].el.classList.remove("on"); pk = i; pucks[pk].el.classList.add("on"); pkAt = 0;
+  mandoText();
+}
+function mandoText() { $("#mtitle .k").textContent = MANDO[pk].kick; $("#mtitle .t").innerHTML = MANDO[pk].t; }
+pucks[pk].el.classList.add("on"); mandoText();
+// sparks off the fire
+const sg = $("#sparks").getContext("2d"), sparks = [];
+function drawSparks(dt) {
+  if (Math.random() < dt * 5) sparks.push({ x: 80 + (Math.random() - .5) * 40, y: 320, vx: (Math.random() - .5) * 14, vy: -40 - Math.random() * 50, life: 1, s: .8 + Math.random() * 1.2 });
+  sg.clearRect(0, 0, 160, 340);
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.life -= dt * (.45 + Math.random() * .2); p.vx += (Math.random() - .5) * 30 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.life <= 0) { sparks.splice(i, 1); continue; }
+    sg.fillStyle = `rgba(255,${(150 + p.life * 80) | 0},70,${(p.life * .9).toFixed(3)})`;
+    sg.beginPath(); sg.arc(p.x, p.y, p.s, 0, 6.2832); sg.fill();
+  }
+}
+function mando(dt, t) {
+  pkAt += dt;
+  css($("#camp"), "transform", `translate3d(${(Math.sin(t * .05) * 8).toFixed(2)}px, ${(Math.sin(t * .037) * 4).toFixed(2)}px, 0) scale(1.022)`);
+  css($("#fireglow"), "opacity", (.78 + .12 * Math.sin(t * 9.1) * Math.sin(t * 3.7) + .1 * Math.sin(t * 23.3)).toFixed(3));
+  drawSparks(dt);
+  pucks.forEach((p, i) => {
+    const want = i === pk && pkAt > .12 ? 1 : 0;
+    p.on = want ? Math.min(1, p.on + dt / .45) : Math.max(0, p.on - dt / .2);
+    if (want && Math.random() < dt * .5) p.glitch = .12;                     // now and then the picture slips
+    p.glitch = Math.max(0, p.glitch - dt);
+    const k = want ? 1 - Math.pow(1 - p.on, 3) : p.on;
+    const flick = .82 + .1 * Math.sin(t * 17 + i) * Math.sin(t * 5.3) + .08 * Math.sin(t * 41);
+    const gx = p.glitch > 0 ? (Math.random() - .5) * 8 : 0;
+    css(p.holo, "transform", `translate3d(${gx.toFixed(1)}px, ${(Math.sin(t * 1.3) * 2).toFixed(1)}px, 0) scaleY(${k.toFixed(3)}) scaleX(${(.6 + .4 * k).toFixed(3)})`);
+    css(p.holo, "opacity", (k * flick * (p.glitch > 0 ? .6 : 1)).toFixed(3));
+    css(p.beam, "opacity", (k * (.7 + .3 * flick)).toFixed(3));
+    css(p.pool, "opacity", k.toFixed(3));
+    css(p.lens, "opacity", k.toFixed(3));
+    css(p.halo, "opacity", (k * flick).toFixed(3));
+  });
+}
+
+// ================================================================ the dark side: the Empire's stories, in story order, leading into A New Hope
+// Vader on the bridge of his star destroyer; through the windows, where each story takes place. Picking another jumps there
+// through hyperspace: the bridge is a picture with its glass cut out, so the streaks can only ever show through the windows.
+// light: the colour each place throws into the room
+const DARK = [
+  { kick: "2022", t: "Obi-Wan Kenobi", open: "Obi-Wan Kenobi", light: "255,96,36" },                 // Mustafar, the world of his castle
+  { kick: "Andor", t: "Season 1", open: "Andor, Season 1", light: "255,176,96" },                    // Coruscant at night
+  { kick: "Andor", t: "Season 2", open: "Andor, Season 2", light: "176,196,226" },                   // the battle station being built
+  { kick: "2016", t: "Rogue One", open: "Rogue One: A Star Wars Story", light: "120,214,255" },      // Scarif, its ocean and islands
+];
+const VP = { x: 1199, y: 387 };                                             // the middle of the glass, where the streaks come from
+const HOP = { swap: .55, end: 1.35 };                                       // a jump: streaks up, the place changes at their peak, then they drop
+let dk = clamp(parseInt(hash("d") || "0"), 0, DARK.length - 1), shown = dk, hop = null;
+const spill = (c, a) => `radial-gradient(ellipse 58% 62% at 62% 38%, rgba(${c},${a}), rgba(${c},${a * .35}) 45%, rgba(${c},0) 75%)`;
+DARK.forEach((d, i) => {
+  $("#dtitle .dots").appendChild(document.createElement("i"));
+  d.view = new Image(); d.view.src = `img/dark/view-${i}.jpg`;
+  d.spill = document.createElement("div"); d.spill.className = "spill"; d.spill.style.background = spill(d.light, .5); $("#spills").appendChild(d.spill);
+  d.o = i === dk ? 1 : 0;
+});
+const hyperLight = document.createElement("div"); hyperLight.className = "spill"; hyperLight.style.background = spill("196,222,255", .8);
+$("#spills").appendChild(hyperLight);
+function darkText(slide) {
+  const box = $("#dtitle .txt"), set = () => { $("#dtitle .k").textContent = DARK[dk].kick; $("#dtitle .t").textContent = DARK[dk].t; };
+  [...$("#dtitle .dots").children].forEach((d, i) => d.classList.toggle("on", i === dk));
+  if (!slide) return set();
+  box.classList.add("out"); clearTimeout(darkText.t);
+  darkText.t = setTimeout(() => { set(); box.classList.remove("out"); box.classList.add("pre"); void box.offsetWidth; box.classList.remove("pre"); }, 220);
+}
+darkText();
+function pickDark(i) {
+  i = clamp(i, 0, DARK.length - 1); if (i === dk) return;
+  dk = i; darkText(true);
+  if (hop && hop.t < HOP.swap) return;                                      // still on the way: it goes to the new place instead
+  // arriving somewhere already: off again from where the streaks are now
+  hop = { t: hop ? HOP.swap * (1 - (hop.t - HOP.swap) / (HOP.end - HOP.swap)) : 0 };
+}
+function openDark() { const d = DARK[dk]; jump({ title: d.open, run: () => watch(d.open) }); }
+// what's outside, and hyperspace over it, drawn into one canvas the size of the glass. (Not pictures scaled with CSS: the
+// TV draws a picture again from scratch each time its scale changes, about 300 ms a frame all through a hop.) With WebGL a
+// whole frame of it is a few calls; the 2D canvas below is the fallback (its 360 calls a frame keep the TV's main thread busy:
+// ~37 fps through a hop).
+const GL = { x: 368, y: 136, w: 1568, h: 468 };                             // the glass, with room round it for the drift (#glass)
+// the part of the stage a view picture covers: on the TV they're cut to the glass (tools/tv_assets.py)
+const VIEW = window.TV ? { x: 368, y: 136, w: 1552, h: 468 } : { x: 0, y: 0, w: W, h: H };
+let glass = $("#glass");
+// hyperspace: stars stretched into lines out from the middle of the glass
+const streaks = Array.from({ length: 360 }, () => ({ a: Math.random() * 6.2832, d: Math.random(), s: .6 + Math.random() * .8 }));
+function eachStreak(dt, w, draw) {
+  for (const s of streaks) {
+    s.d += dt * s.s * (.12 + w * 1.6); if (s.d > 1) { s.d -= 1; s.a = Math.random() * 6.2832; }
+    const r0 = 20 + s.d * s.d * 1000, r1 = r0 + w * (30 + s.d * 520), c = Math.cos(s.a), n = Math.sin(s.a);
+    // from r0 to r1 along its line (squashed to the glass's shape), twice its width since its soft edge fades to nothing
+    const dx = c * (r1 - r0), dy = n * (r1 - r0) * .7;
+    draw(VP.x + c * r0, VP.y + n * r0 * .7, dx, dy, Math.hypot(dx, dy) || 1, (.8 + s.d * 2) * 2, Math.min(1, w * 1.5) * (.3 + s.d * .7));
+  }
+}
+// the places to draw: from the topmost one that hides all those under it. `every` (the warm-up) draws them all, so none
+// is new to the TV on its first hop.
+function placesFrom(every) {
+  let from = every ? 0 : DARK.length - 1;
+  while (from > 0 && DARK[from].o < 1) from--;
+  return from;
+}
+
+// ---------------------------------------------------------------- WebGL
+// a WebGL program for a canvas covering `box` on the stage, drawing in the stage's coordinates (p; e: anything else per corner)
+function glProgram(g, box, fs) {
+  const shader = (type, src) => {
+    const s = g.createShader(type); g.shaderSource(s, src); g.compileShader(s);
+    if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s));
+    return s;
+  };
+  const p = g.createProgram();
+  g.attachShader(p, shader(g.VERTEX_SHADER, `attribute vec2 pos; attribute vec3 ex; uniform vec4 box; varying vec2 p; varying vec3 e;
+    void main() { p = pos; e = ex; vec2 c = (pos - box.xy) / box.zw * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`));
+  g.attachShader(p, shader(g.FRAGMENT_SHADER, "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n" +
+                                             "varying vec2 p; varying vec3 e;\n" + fs));
+  g.bindAttribLocation(p, 0, "pos"); g.bindAttribLocation(p, 1, "ex"); g.linkProgram(p);
+  if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p));
+  const u = {};
+  for (let i = g.getProgramParameter(p, g.ACTIVE_UNIFORMS); i--;) { const n = g.getActiveUniform(p, i).name; u[n.replace(/\[0\]$/, "")] = g.getUniformLocation(p, n); }
+  g.useProgram(p); g.uniform4f(u.box, box.x, box.y, box.w, box.h);
+  return { p, u };
+}
+function glQuad(g, box) {                                                   // two triangles covering `box`
+  const b = g.createBuffer(), x0 = box.x, y0 = box.y, x1 = box.x + box.w, y1 = box.y + box.h;
+  g.bindBuffer(g.ARRAY_BUFFER, b); g.bufferData(g.ARRAY_BUFFER, new Float32Array([x0, y0, x1, y0, x0, y1, x0, y1, x1, y0, x1, y1]), g.STATIC_DRAW);
+  return b;
+}
+function glTexture(g, img, format) {                                       // a picture, uploaded once
+  const t = g.createTexture(); g.bindTexture(g.TEXTURE_2D, t);
+  for (const [k, v] of [[g.TEXTURE_MIN_FILTER, g.LINEAR], [g.TEXTURE_MAG_FILTER, g.LINEAR], [g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE], [g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE]])
+    g.texParameteri(g.TEXTURE_2D, k, v);
+  g.texImage2D(g.TEXTURE_2D, 0, format, format, g.UNSIGNED_BYTE, img);
+  return t;
+}
+
+let gl = null, glp = null;
+try { gl = glass.getContext("webgl", { alpha: false, antialias: false, depth: false, stencil: false }); } catch (e) { gl = null; }
+const glVerts = new Float32Array(streaks.length * 6 * 5);
+function glSetup() {
+  const program = fs => glProgram(gl, GL, fs);
+  glp = {
+    // a place: its picture scaled by z about the middle of the glass
+    view: program(`uniform sampler2D tex; uniform vec4 view; uniform vec2 vp; uniform float z, a;
+      void main() { gl_FragColor = vec4(texture2D(tex, (vp + (p - vp) / z - view.xy) / view.zw).rgb * a, a); }`),
+    // the tunnel's glow, as the 2D canvas's radial gradient
+    glow: program(`uniform vec2 vp; uniform float k;
+      void main() {
+        float r = length(p - vp) / 820.0;
+        vec4 c0 = vec4(vec3(232.0, 242.0, 255.0) / 255.0 * 0.92, 0.92), c1 = vec4(vec3(130.0, 175.0, 255.0) / 255.0 * 0.5, 0.5);
+        gl_FragColor = k * (r < 0.5 ? mix(c0, c1, r / 0.5) : mix(c1, vec4(0.0), clamp(r / 0.5 - 1.0, 0.0, 1.0)));
+      }`),
+    // a streak: a soft line, brightest along its middle, fading in and out at its ends (ex: along, across, brightness)
+    streak: program(`void main() {
+        float k = (1.0 - abs(2.0 * e.y - 1.0)) * clamp(min(e.x, 1.0 - e.x) / 0.1, 0.0, 1.0) * e.z;
+        gl_FragColor = vec4(vec3(214.0, 230.0, 255.0) / 255.0 * k, k);
+      }`),
+    quad: glQuad(gl, GL), lines: gl.createBuffer(),
+  };
+  gl.useProgram(glp.view.p); gl.uniform4f(glp.view.u.view, VIEW.x, VIEW.y, VIEW.w, VIEW.h); gl.uniform2f(glp.view.u.vp, VP.x, VP.y);
+  gl.useProgram(glp.glow.p); gl.uniform2f(glp.glow.u.vp, VP.x, VP.y);
+  gl.enable(gl.BLEND);
+  DARK.forEach(d => (d.tex = null));
+}
+const placeTexture = d => d.tex || (d.view.complete && d.view.naturalWidth ? (d.tex = glTexture(gl, d.view, gl.RGB)) : null);
+function drawGlassGL(dt, w, z, every) {
+  gl.viewport(0, 0, glass.width, glass.height);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bindBuffer(gl.ARRAY_BUFFER, glp.quad);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.disableVertexAttribArray(1); gl.vertexAttrib3f(1, 0, 0, 0);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(glp.view.p); gl.uniform1f(glp.view.u.z, z);
+  if (every) DARK.forEach(placeTexture);
+  for (let i = placesFrom(every); i < DARK.length; i++) {
+    const d = DARK[i], a = every ? Math.max(d.o, .02) : d.o;
+    if (a <= 0 || !placeTexture(d)) continue;
+    gl.bindTexture(gl.TEXTURE_2D, d.tex); gl.uniform1f(glp.view.u.a, a); gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+  if (w < .005) return;
+  gl.useProgram(glp.glow.p); gl.uniform1f(glp.glow.u.k, Math.pow(w, 1.6)); gl.drawArrays(gl.TRIANGLES, 0, 6);
+  let o = 0;
+  const put = (x, y, u, v, k) => { glVerts[o++] = x; glVerts[o++] = y; glVerts[o++] = u; glVerts[o++] = v; glVerts[o++] = k; };
+  eachStreak(dt, w, (x, y, dx, dy, len, lw, k) => {
+    const nx = -dy / len * lw / 2, ny = dx / len * lw / 2;
+    put(x - nx, y - ny, 0, 0, k); put(x + dx - nx, y + dy - ny, 1, 0, k); put(x + nx, y + ny, 0, 1, k);
+    put(x + nx, y + ny, 0, 1, k); put(x + dx - nx, y + dy - ny, 1, 0, k); put(x + dx + nx, y + dy + ny, 1, 1, k);
+  });
+  gl.bindBuffer(gl.ARRAY_BUFFER, glp.lines); gl.bufferData(gl.ARRAY_BUFFER, glVerts, gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 20, 8);
+  gl.useProgram(glp.streak.p); gl.blendFunc(gl.ONE, gl.ONE);               // light adds up, as "lighter" does
+  gl.drawArrays(gl.TRIANGLES, 0, streaks.length * 6);
+}
+if (gl) {
+  try { glSetup(); } catch (e) {                                            // a canvas with a WebGL context can't have a 2D one: a new canvas
+    console.log("glass: " + e.message); gl = null;
+    const c = glass.cloneNode(); glass.replaceWith(c); glass = c;
+  }
+  // the TV can take the GPU back while something else is open: set it all up again, then draw it again
+  glass.addEventListener("webglcontextlost", e => { e.preventDefault(); DARK.forEach(d => (d.tex = null)); });
+  glass.addEventListener("webglcontextrestored", () => { glSetup(); glassWas = ""; });
+}
+
+// ---------------------------------------------------------------- the 2D canvas (no WebGL)
+// each streak is one soft line drawn once (STREAK) and stretched into place: hundreds of stroked lines took the TV ~300 ms a frame
+const gg = gl ? null : glass.getContext("2d", { alpha: false });
+if (gg && !TVMODE) gg.imageSmoothingQuality = "high";                      // the browser's pictures are larger than the screen
+const STREAK = document.createElement("canvas"); STREAK.width = 64; STREAK.height = 8;
+{ const g = STREAK.getContext("2d"), across = g.createLinearGradient(0, 0, 0, 8), along = g.createLinearGradient(0, 0, 64, 0);
+  across.addColorStop(0, "rgba(214,230,255,0)"); across.addColorStop(.5, "rgba(214,230,255,1)"); across.addColorStop(1, "rgba(214,230,255,0)");
+  g.fillStyle = across; g.fillRect(0, 0, 64, 8);
+  along.addColorStop(0, "rgba(0,0,0,0)"); along.addColorStop(.1, "#000"); along.addColorStop(.9, "#000"); along.addColorStop(1, "rgba(0,0,0,0)");
+  g.globalCompositeOperation = "destination-in"; g.fillStyle = along; g.fillRect(0, 0, 64, 8); }
+function drawGlass2D(dt, w, z, every) {
+  const g = gg;
+  g.setTransform(1, 0, 0, 1, -GL.x, -GL.y);                                // in the stage's coordinates
+  g.globalAlpha = 1;
+  const from = placesFrom(every);
+  if (every || DARK[from].o < 1) { g.fillStyle = "#000"; g.fillRect(GL.x, GL.y, GL.w, GL.h); }
+  for (let i = from; i < DARK.length; i++) {
+    const d = DARK[i], a = every ? Math.max(d.o, .02) : d.o;
+    if (a <= 0 || !d.view.complete) continue;
+    g.globalAlpha = a; g.drawImage(d.view, VP.x + (VIEW.x - VP.x) * z, VP.y + (VIEW.y - VP.y) * z, VIEW.w * z, VIEW.h * z);
+  }
+  g.globalAlpha = 1;
+  if (w < .005) return;
+  let rg = g.createRadialGradient(VP.x, VP.y, 0, VP.x, VP.y, 820);         // the tunnel's glow
+  const gw = Math.pow(w, 1.6);
+  rg.addColorStop(0, `rgba(232,242,255,${(gw * .92).toFixed(3)})`); rg.addColorStop(.5, `rgba(130,175,255,${(gw * .5).toFixed(3)})`); rg.addColorStop(1, "rgba(70,110,255,0)");
+  g.fillStyle = rg; g.fillRect(GL.x, GL.y, GL.w, GL.h);
+  g.globalCompositeOperation = "lighter";
+  eachStreak(dt, w, (x, y, dx, dy, len, lw, k) => {
+    g.globalAlpha = k;
+    g.setTransform(dx / len, dy / len, -dy / len, dx / len, x - GL.x, y - GL.y);
+    g.drawImage(STREAK, 0, -lw / 2, len, lw);
+  });
+  g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
+}
+
+// ---------------------------------------------------------------- the light from outside, on the room, with WebGL
+// The places' light (and hyperspace's) on the room only, never on the glass: the same gradients as the #spills layers (the
+// fallback without WebGL), masked by the bridge picture the same way, but one pass over only the part it reaches, and only
+// when it changes, at half the screen's resolution (it's a soft light; drawn at full size it still cost the TV ~15 fps
+// through a hop). Five full-screen layers in a masked group cost it as much.
+const LIGHT = { x: 352, y: 0, w: 1568, h: 916 };                            // where the light reaches (#light)
+const LIGHT_C = [...DARK.map(d => d.light), "196,222,255"].flatMap(c => c.split(",").map(v => v / 255));
+const LIGHT_A = [...DARK.map(() => .5), .8];                                 // as spill(c, a) gives each of them
+let lgl = null, lgp = null, lightWas = "";
+try { lgl = $("#light").getContext("webgl", { antialias: false, depth: false, stencil: false }); } catch (e) { lgl = null; }
+function lightSetup() {
+  lgp = { prog: glProgram(lgl, LIGHT, `uniform sampler2D mask; uniform vec3 c[5]; uniform float k[5];
+      void main() {
+        float r = length((p - vec2(1190.4, 410.4)) / vec2(1113.6, 669.6));    // spill(): ellipse 58% 62% at 62% 38%
+        float f = r < 0.45 ? mix(1.0, 0.35, r / 0.45) : mix(0.35, 0.0, clamp((r - 0.45) / 0.3, 0.0, 1.0));
+        vec4 lit = vec4(0.0);
+        for (int i = 0; i < 5; i++) { float a = k[i] * f; lit = vec4(c[i] * a, a) + lit * (1.0 - a); }   // stacked in page order
+        gl_FragColor = lit * texture2D(mask, p / vec2(1920.0, 1080.0)).a;
+      }`), quad: glQuad(lgl, LIGHT), mask: null };
+  lgl.uniform3fv(lgp.prog.u.c, LIGHT_C);
+  lgl.enableVertexAttribArray(0); lgl.vertexAttribPointer(0, 2, lgl.FLOAT, false, 0, 0);
+  lgl.disableVertexAttribArray(1); lgl.vertexAttrib3f(1, 0, 0, 0);
+  lightWas = "";
+}
+function drawLight(lit) {
+  const now = lit.map(k => k.toFixed(3)).join(" "), fg = $("#fg");
+  if (now === lightWas || lgl.isContextLost()) return;
+  if (!lgp.mask) { if (!fg.complete || !fg.naturalWidth) return; lgp.mask = glTexture(lgl, fg, lgl.ALPHA); }
+  lightWas = now;
+  lgl.viewport(0, 0, $("#light").width, $("#light").height);
+  lgl.uniform1fv(lgp.prog.u.k, lit.map((k, i) => k * LIGHT_A[i]));
+  lgl.drawArrays(lgl.TRIANGLES, 0, 6);
+}
+if (lgl) {
+  try { lightSetup(); $("#spills").style.display = "none"; $("#light").style.display = "block"; }
+  catch (e) { console.log("light: " + e.message); lgl = null; }
+  $("#light").addEventListener("webglcontextlost", e => e.preventDefault());
+  $("#light").addEventListener("webglcontextrestored", () => lgl && lightSetup());
+}
+
+let glassWas = "";
+function drawGlass(dt, w, z, every) {
+  // at rest nothing in here changes (the slow drift moves the whole canvas, see dark()), so it's only drawn again when it does
+  const now = DARK.map(d => (d.view.complete ? d.o.toFixed(3) : "-")).join(" ");
+  if (w < .005 && !every && now === glassWas) return;
+  if (gl && gl.isContextLost()) return;
+  glassWas = every ? "" : now;
+  // the warm-up also draws a trace of hyperspace, so the TV has its glow and streaks ready before the first hop (~350 ms otherwise)
+  (gl ? drawGlassGL : drawGlass2D)(dt, every ? Math.max(w, .02) : w, z, every);
+}
+function dark(dt, t) {
+  // how far into hyperspace we are: a hop between places, all the way in on OK, and out again coming back from the show
+  let w = 0, kick = 0;
+  if (hop) {
+    hop.t += dt;
+    const h = hop.t;
+    if (h >= HOP.swap) shown = dk;                                          // at the peak, the windows show the new place
+    w = h < HOP.swap ? ease(h / HOP.swap) : 1 - ease(clamp((h - HOP.swap) / (HOP.end - HOP.swap), 0, 1));
+    kick = Math.max(0, 1 - Math.abs(h - HOP.swap) / .22);
+    if (h > HOP.end) hop = null;
+  }
+  if (jumping) { w = Math.max(w, ease(clamp(jumpT / 1.2, 0, 1))); kick = Math.max(kick, w * .8); }
+  if (back) w = Math.max(w, 1 - ease(clamp(back.t / 1.3, 0, 1)));
+  // the bridge trembles a little as it goes in and comes out
+  const sx = Math.sin(t * 53) * 2.4 * kick, sy = Math.sin(t * 41 + 1) * 1.6 * kick;
+  css($("#bridge"), "transform", `translate3d(${sx.toFixed(2)}px, ${sy.toFixed(2)}px, 0)`);
+  // the place outside drifts slowly as the ship holds station; in hyperspace it rushes in
+  const z = 1.04 + w * .3, px = Math.sin(t * .05) * 9, py = Math.sin(t * .037 + 2) * 4;
+  // each place's light on the room, fading as the ship goes in; hyperspace's own light at its peak
+  const lit = DARK.map((d, i) => (d.o = clamp(d.o + (i === shown ? 1 : -1) * dt * 7, 0, 1)) * (1 - w) * .32).concat(w * w * .7);
+  if (lgl) drawLight(lit);
+  else { DARK.forEach((d, i) => css(d.spill, "opacity", lit[i].toFixed(3))); css(hyperLight, "opacity", lit[DARK.length].toFixed(3)); }
+  css($("#glass"), "transform", `translate3d(${px.toFixed(2)}px, ${py.toFixed(2)}px, 0)`);
+  drawGlass(dt, w, z, warmPlan.length > 0);
+}
+
+// ================================================================ jumping to hyperspace (opening something)
+const warp = $("#warp").getContext("2d");
+function curtain(title, show) {
+  $("#opening .t").textContent = title;
+  css($("#opening"), "transition", show ? "opacity .25s" : "opacity .6s");
+  css($("#opening"), "opacity", show ? "1" : "0");
+}
+// the TV app's bridge (starwars-tv): TV.launch(app), TV.openFilm(link, package, title). A title opens where the settings say:
+// its page in that app when config.js has a link for it there, else that app's own search; "search", or an app that isn't
+// on the TV, is the TV's own search. In a browser, we come back by ourselves.
+const filmLink = title => ((DEFAULTS.links || {})[settings.films] || {})[title] || "";
+const watch = title => window.TV && TV.openFilm(filmLink(title), settings.films, title);
+function openApp() { const a = APPS[app]; if (a.target === "customise") return openCustom(); jump({ title: a.n, run: () => window.TV && TV.launch(a.target) }); }
+function openFilm() { const f = SABERS[sel]; jump({ title: f.t, run: () => watch(f.t) }); }
+function openMando() { const m = MANDO[pk]; jump({ title: m.open, run: () => watch(m.open) }); }
+function jump(what) { if (jumping) return; jumping = true; jumpT = 0; jumpWhat = what; navText(); }
+function updateJump(dt) {
+  if (!jumping) return;
+  jumpT += dt;
+  const t = jumpT;
+  // 0 – 0.8 s: the engines spool up, the stars stretch; 0.8 – 1.75 s: the tunnel; then a flash, and the app opens
+  if (t < .8) ship.speed = lerp(BASE, 1.8, ease(t / .8));
+  else ship.speed = lerp(1.8, 9, ease(clamp((t - .8) / .55, 0, 1)));
+  ship.jump = clamp((t - .55) / .6, 0, 1);
+  if (t < .8) cam.r.v += (Math.random() - .5) * 2;                  // a rattle as it spools up
+  css($("#flash"), "opacity", (t > 1.6 ? clamp(1 - (t - 1.75) / .4, 0, 1) * clamp((t - 1.6) / .15, 0, 1) : 0).toFixed(3));
+  if (section > 0 && section < 3) css($("#warp"), "opacity", clamp(t / .5, 0, 1).toFixed(3));   // (the dark side jumps through its own windows)
+  if (t > 1.75 && jumpWhat) { curtain(jumpWhat.title, true); jumpWhat.run(); jumpWhat = null; ranAt = t;
+    if (!window.TV) setTimeout(() => window.tvReturn(), 1700); }
+  // on the TV the app tells us when we're back (tvResume); if nothing opened and we never left, come back by ourselves
+  if (window.TV && ranAt && !away && t > ranAt + 4) window.tvReturn();
+}
+// the TV app: tvPause when something else comes in front, tvResume when we're back in front
+let ranAt = 0, away = false;
+window.tvPause = () => { away = true; };
+window.tvResume = () => { away = false; if (jumping && ranAt) window.tvReturn(); };
+// back from the app: drop out of hyperspace in front of the next planet
+window.tvReturn = () => {
+  jumping = false; ranAt = 0; setTimeout(navText, 0); curtain("", false); css($("#flash"), "opacity", "0"); css($("#warp"), "opacity", "0");
+  back = { t: 0 };
+  ship.planet = (ship.planet + 1) % PLANETS.length; ship.arrive = 0;
+};
+function updateReturn(dt) {
+  if (!back) return;
+  back.t += dt;
+  const t = back.t;
+  ship.speed = lerp(12, BASE, ease(clamp(t / 1.1, 0, 1)));
+  ship.jump = clamp(1 - t / .7, 0, 1);
+  ship.arrive = clamp((t - .35) / 1.6, 0, 1);
+  if (t > .1 && t < .2) cam.y.v -= 40;
+  if (t > 2.2) back = null;
+}
+// the warp overlay, for jumps from the saga and the Mandalorian (the cockpit's own stars do it at home)
+const wst = Array.from({ length: 500 }, () => ({ a: Math.random() * 6.2832, r: Math.random(), s: .5 + Math.random() }));
+function drawWarp(dt) {
+  const o = parseFloat($("#warp").style.opacity || 0); if (o <= 0) return;
+  const g = warp; g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "lighter"; g.strokeStyle = "rgba(190,225,255,.55)"; g.lineWidth = 2;
+  for (const s of wst) {
+    s.r += dt * s.s * 1.6; if (s.r > 1.3) s.r = .02;
+    const r0 = Math.pow(s.r, 2) * 1300, r1 = r0 + 40 + s.r * 380;
+    g.beginPath(); g.moveTo(960 + Math.cos(s.a) * r0, 540 + Math.sin(s.a) * r0); g.lineTo(960 + Math.cos(s.a) * r1, 540 + Math.sin(s.a) * r1); g.stroke();
+  }
+  g.globalCompositeOperation = "source-over";
+}
+
+// ================================================================ sections and the remote
+// 0 the cockpit, 1 the saga (down), 2 the Mandalorian, 3 the dark side
+let section = /saga/.test(location.hash) ? 1 : /mando/.test(location.hash) ? 2 : /dark/.test(location.hash) ? 3 : 0;
+const page = spring(section, 26, 1);
+addEventListener("keydown", e => {
+  const k = e.key;
+  if (k.startsWith("Arrow") || k === "Enter") e.preventDefault();
+  if (k === "c" || k === "C") { location.hash = /cockpit2/.test(location.hash) ? "" : "cockpit2"; location.reload(); return; }
+  if (custom.open) return customKey(k);
+  if (jumping || back) return;
+  const up = k === "ArrowUp", down = k === "ArrowDown", ok = k === "Enter" || k === " ", backKey = k === "Escape" || k === "Backspace";
+  if (section === 0 && custOn) {                                       // Customise is showing at the top
+    if (ok) openCustom(); else if (backKey || (k.startsWith("Arrow") && !up)) setCust(false);
+  } else if (section === 0) {
+    if (k === "ArrowRight") focusApp(app + 1);
+    else if (k === "ArrowLeft") focusApp(app - 1);
+    else if (down) section = 1;
+    else if (up) setCust(true);
+    else if (ok) openApp();
+  } else if (section === 1) {
+    if (k === "ArrowRight") pickSaber(sel + 1);
+    else if (k === "ArrowLeft") pickSaber(sel - 1);
+    else if (up || backKey) section = 0;
+    else if (down) section = 2;
+    else if (ok) openFilm();
+  } else if (section === 2) {
+    if (k === "ArrowRight") pickPuck(pk + 1);
+    else if (k === "ArrowLeft") pickPuck(pk - 1);
+    else if (up || backKey) section = 1;
+    else if (down) section = 3;
+    else if (ok) openMando();
+  } else {
+    if (k === "ArrowRight") pickDark(dk + 1);
+    else if (k === "ArrowLeft") pickDark(dk - 1);
+    else if (up || backKey) section = 2;
+    else if (ok) openDark();
+  }
+});
+window.tvBack = () => {
+  if (custom.open) { closeCustom(); return true; }
+  if (custOn) { setCust(false); return true; }
+  if (jumping) return true; if (section > 0) { section--; return true; } return false;
+};
+window.tvHome = () => { if (custom.open) closeCustom(); setCust(false); section = 0; };   // the remote's Home button, when this is the home screen
+
+// ================================================================ CUSTOMISE
+// Every app on the TV and every HDMI port, as tiles: OK picks one for the cockpit (numbered in order, six at most) or drops
+// it. Below, where the films and series open: an app with direct links in config.js, the TV's own search, or the search of
+// any app picked. Done (or Back) keeps the choices; Start again goes back to config.js.
+let custOn = false;
+function setCust(on) { custOn = on; $("#cust").classList.toggle("on", on); css($("#reticle"), "visibility", on ? "hidden" : "visible"); }
+tap($("#cust"), () => openCustom());
+if (!TVMODE) $("#cust").style.cursor = "pointer";
+const NAMES = { "in.startv.hotstar": "JioHotstar", "com.netflix.ninja": "Netflix", "com.amazon.amazonvideo.livingroom": "Prime Video",
+                "com.disney.disneyplus": "Disney+", "com.google.android.youtube.tv": "YouTube", "com.apple.atve.androidtv.appletv": "Apple TV" };
+const custom = { open: false, tiles: [], pick: [], films: "", zone: 0, gi: 0, fi: 0, bi: 0, pills: [] };
+const COLS = 6;
+function tileKeyFor(e, tiles) {                               // a dock entry -> its tile (an "input:<name>" matches its port)
+  if (!e.pkg.startsWith("input:")) return tiles.some(t => t.key === e.pkg) ? e.pkg : null;
+  const t = tiles.find(t => t.input && inputMatch(e.pkg.slice(6), t.input));
+  return t ? t.key : null;
+}
+function openCustom() {
+  setCust(false);
+  const apps = tvApps(), inputs = tvInputs();
+  const tile = a => ({ key: a.pkg, label: a.label, pkg: a.pkg });
+  custom.tiles = apps.filter(a => a.media !== false).map(tile)
+    .concat(inputs.map(i => ({ key: "input:" + i.id, label: i.label.split(" · ")[0], sub: i.label, input: i })))
+    .concat(apps.filter(a => a.media === false).map(tile));
+  custom.pick = settings.dock.map(e => tileKeyFor(e, custom.tiles)).filter((k, i, a) => k && a.indexOf(k) === i).slice(0, 6);
+  custom.films = settings.films;
+  custom.zone = 0; custom.gi = 0; custom.fi = 0; custom.bi = 0; custom.scroll = 0;
+  const rows = $("#custom .rows");
+  rows.innerHTML = custom.tiles.map(t => `<div class="tile"><div class="t">${esc(t.input ? t.sub : t.label)}</div><div class="n"></div></div>`).join("");
+  custom.els = [...rows.children];
+  if (!TVMODE) custom.els.forEach((el, i) => el.addEventListener("click", () => { custom.zone = 0; custom.gi = i; customKey("Enter"); }));
+  custom.open = true; $("#custom").classList.add("open");
+  for (const id of ["#home", "#saga", "#mando", "#dark"]) css($(id), "visibility", "hidden");
+  drawCustom();
+  // the apps' own banners or icons, a few at a time so the panel opens at once
+  let q = custom.tiles.map((t, i) => [t, i]).filter(([t]) => t.pkg && HAS_TV);
+  const more = () => {
+    if (!custom.open || !q.length) return;
+    q.splice(0, 4).forEach(([t, i]) => {
+      const u = TV.icon(t.pkg); if (!u) return;
+      const img = document.createElement("img"), banner = u.startsWith("banner:"); img.className = banner ? "" : "icon";
+      img.src = u.slice(u.indexOf(":") + 1); custom.els[i].prepend(img);
+      if (banner) custom.els[i].classList.add("banner");
+    });
+    setTimeout(more, 30);
+  };
+  more();
+}
+function filmChoices() {                                     // [value, label] for the films row
+  const out = [];
+  for (const pkg of Object.keys(DEFAULTS.links || {})) if (tvHas(pkg)) out.push([pkg, `${esc(NAMES[pkg] || (custom.tiles.find(t => t.key === pkg) || {}).label || pkg)} <i>· each title directly</i>`]);
+  out.push(["search", `Your TV's search <i>· any country</i>`]);
+  for (const key of custom.pick) {
+    const t = custom.tiles.find(t => t.key === key);
+    if (t && t.pkg && !out.some(o => o[0] === t.pkg)) out.push([t.pkg, `${esc(t.label)} <i>· its search</i>`]);
+  }
+  return out;
+}
+function drawCustom() {
+  custom.els.forEach((el, i) => {
+    const n = custom.pick.indexOf(custom.tiles[i].key);
+    el.classList.toggle("sel", n >= 0); el.querySelector(".n").textContent = n >= 0 ? n + 1 : "";
+    el.classList.toggle("foc", custom.zone === 0 && custom.gi === i);
+  });
+  const row = Math.floor(custom.gi / COLS);                   // three rows show; the grid scrolls to keep the focus in view
+  custom.scroll = clamp(custom.scroll || 0, row - 2, row);
+  $("#custom .rows").style.transform = `translateY(${-custom.scroll * 142}px)`;
+  custom.pills = filmChoices();
+  if (!custom.pills.some(p => p[0] === custom.films)) custom.films = custom.pills[0][0];
+  $("#custom .films").innerHTML = custom.pills.map(([v, l], i) =>
+    `<div class="pill${v === custom.films ? " sel" : ""}${custom.zone === 1 && custom.fi === i ? " foc" : ""}">${l}</div>`).join("");
+  if (!TVMODE) $("#custom .films").querySelectorAll(".pill").forEach((el, i) => el.addEventListener("click", () => { custom.zone = 1; custom.fi = i; customKey("Enter"); }));
+  document.querySelectorAll("#custom .btn").forEach((b, i) => b.classList.toggle("foc", custom.zone === 2 && custom.bi === i));
+}
+if (!TVMODE) document.querySelectorAll("#custom .btn").forEach((b, i) => b.addEventListener("click", () => { custom.zone = 2; custom.bi = i; customKey("Enter"); }));
+let noteTimer = 0;
+function note(t) { $("#custom .note").textContent = t; clearTimeout(noteTimer); noteTimer = setTimeout(() => ($("#custom .note").textContent = ""), 2200); }
+function customKey(k) {
+  const n = custom.tiles.length;
+  if (k === "Escape" || k === "Backspace") return closeCustom();
+  if (custom.zone === 0) {
+    if (k === "ArrowRight" && custom.gi + 1 < n && (custom.gi + 1) % COLS) custom.gi++;
+    else if (k === "ArrowLeft" && custom.gi % COLS) custom.gi--;
+    else if (k === "ArrowUp" && custom.gi >= COLS) custom.gi -= COLS;
+    else if (k === "ArrowDown") { if (custom.gi + COLS < n) custom.gi += COLS; else if (Math.floor(custom.gi / COLS) < Math.floor((n - 1) / COLS)) custom.gi = n - 1; else custom.zone = 1; }
+    else if (k === "Enter" || k === " ") {
+      const key = custom.tiles[custom.gi].key, at = custom.pick.indexOf(key);
+      if (at >= 0) custom.pick.splice(at, 1);
+      else if (custom.pick.length >= 6) note("The cockpit holds six. Drop one first.");
+      else custom.pick.push(key);
+    }
+  } else if (custom.zone === 1) {
+    if (k === "ArrowRight") custom.fi = Math.min(custom.pills.length - 1, custom.fi + 1);
+    else if (k === "ArrowLeft") custom.fi = Math.max(0, custom.fi - 1);
+    else if (k === "ArrowUp") custom.zone = 0;
+    else if (k === "ArrowDown") custom.zone = 2;
+    else if (k === "Enter" || k === " ") custom.films = custom.pills[custom.fi][0];
+  } else {
+    if (k === "ArrowRight") custom.bi = 1;
+    else if (k === "ArrowLeft") custom.bi = 0;
+    else if (k === "ArrowUp") custom.zone = 1;
+    else if (k === "Enter" || k === " ") {
+      if (custom.bi === 0) return closeCustom();
+      custom.pick = DEFAULTS.dock.map(e => tileKeyFor(e, custom.tiles)).filter(Boolean).slice(0, 6);
+      custom.films = DEFAULTS.films; note("Back to the starting apps.");
+    }
+  }
+  drawCustom();
+}
+function closeCustom() {
+  settings.dock = custom.pick.map(key => { const t = custom.tiles.find(t => t.key === key); return { pkg: key, label: t.label }; });
+  settings.films = custom.films;
+  saveSettings();
+  custom.open = false; $("#custom").classList.remove("open");
+  for (const id of ["#home", "#saga", "#mando", "#dark"]) css($(id), "visibility", "visible");
+  buildMarks(); pan.x = app; pan.v = 0; navText();
+}
+let wheelAt = 0;
+addEventListener("wheel", e => { const n = performance.now(); if (n - wheelAt < 600 || Math.abs(e.deltaY) < 8) return; wheelAt = n; section = clamp(section + Math.sign(e.deltaY), 0, 3); }, { passive: true });
+
+// ================================================================ the loop
+let last = performance.now(), perf = { n: 0, sum: 0, worst: 0, slow: 0, at: last };
+function frame(now) {
+  // a frame's time can be from before a long task (painting the planets), so behind the last one: never step backwards
+  const ms = now - last, dt = clamp(ms / 1000, 0, .05); last = Math.max(last, now);
+  const t = now / 1000;
+  if (window.TV && ms > 0) {                                             // frame times to the TV's log, every 5 s
+    perf.n++; perf.sum += ms; perf.worst = Math.max(perf.worst, ms); if (ms > 25) perf.slow++;
+    if (now - perf.at > 5000) {
+      console.log(`perf section=${section} fps=${(1000 * perf.n / perf.sum).toFixed(1)} worst=${perf.worst.toFixed(0)}ms slow=${perf.slow}/${perf.n}`);
+      perf = { n: 0, sum: 0, worst: 0, slow: 0, at: now };
+    }
+  }
+  if (warm || custom.open) return requestAnimationFrame(frame);          // the pictures are still decoding, or the Customise panel covers it all
+  updateJump(dt); updateReturn(dt);
+  if (!jumping && !back) {
+    ship.boost = Math.max(0, ship.boost - dt * 1.25);                                  // the burst fades over about 0.8 s
+    ship.speed = BASE + Math.pow(ship.boost, 1.5) * 1.5;
+    ship.jump = Math.max(0, ship.jump - dt * 2);
+    ship.arrive = Math.min(1, ship.arrive + dt * .5);
+  }
+  ship.dist += ship.speed * dt;
+  // the ship's gentle motion, and the lurch on each burst
+  const sway = { x: Math.sin(t * .23) * 5 + Math.sin(t * .61) * 2, y: Math.sin(t * .31 + 1) * 4 };
+  const cx = step(cam.x, 0, dt), cy = step(cam.y, 0, dt), cr = step(cam.r, 0, dt), cz = step(cam.z, 0, dt);
+  let pg;
+  if (warmPlan.length) { pg = page.x = warmPlan.shift(); page.v = 0; if (!warmPlan.length) liftCurtain(); }   // visiting each section
+  else pg = clamp(step(page, section, dt), 0, 3);
+  if (pg < .999) {
+    drawSpace(dt, t, sway);
+    const shake = ship.jump > 0 && jumping ? (Math.random() - .5) * 3 * ship.jump : 0;
+    css($("#cockpit"), "transform", `translate3d(${(-sway.x * .4 + cx + shake).toFixed(2)}px, ${(-sway.y * .4 + cy + shake).toFixed(2)}px, 0) rotate(${(cr * .1 + Math.sin(t * .27) * .12).toFixed(3)}deg) scale(${(1 + cz * .5).toFixed(4)})`);
+    css($("#hud"), "transform", `translate3d(${(-sway.x * .4 + cx).toFixed(2)}px, ${(-sway.y * .4 + cy).toFixed(2)}px, 0)`);
+    css($("#wash"), "opacity", clamp(ship.boost * .5 + ship.jump * .65, 0, 1).toFixed(3));
+    updateTargets(dt, t);
+  }
+  css($("#home"), "transform", `translate3d(0, ${(-1080 * pg).toFixed(1)}px, 0)`);
+  css($("#saga"), "transform", `translate3d(0, ${(1080 * (1 - pg)).toFixed(1)}px, 0)`);
+  css($("#mando"), "transform", `translate3d(0, ${(1080 * (2 - pg)).toFixed(1)}px, 0)`);
+  css($("#dark"), "transform", `translate3d(0, ${(1080 * (3 - pg)).toFixed(1)}px, 0)`);
+  if (pg > .001 && pg < 1.999) saga(dt, t);
+  if (pg > 1.001 && pg < 2.999) mando(dt, t);
+  if (pg > 2.001) dark(dt, t);
+  drawWarp(dt);
+  requestAnimationFrame(frame);
+}
+function fit() {
+  // the TV uses CSS zoom, not a scale transform: under a transform its WebView keeps every moving layer rendered at full
+  // 2x density (four times the pixels), runs out of graphics memory and drops to a few frames a second
+  if (TVMODE) { $("#stage").style.zoom = Math.min(innerWidth / 1920, innerHeight / 1080); return; }
+  // the stage's edges on whole screen pixels, or a sliver of what's under the black curtain shows along them
+  const d = devicePixelRatio || 1, k = Math.floor(Math.min(innerWidth / 1920, innerHeight / 1080) * 1080 * d / 9) * 9, s = k / (1080 * d);
+  const snap = v => (Math.round(v * d) / d - v).toFixed(4);
+  $("#stage").style.transform = `translate(${snap(innerWidth / 2 - 960 * s)}px, ${snap(innerHeight / 2 - 540 * s)}px) scale(${s})`;
+}
+addEventListener("resize", fit); fit();
+// Start-up on the TV: behind a (nearly) black curtain, wait for the pictures to decode, then show each section in turn for a
+// few frames so the TV has drawn every one of them before you first get there (shown all at once they'd hide each other
+// and only the top one would get drawn).
+let warm = 0, warmPlan = [];
+const hold = (pg, n) => Array(n).fill(pg);
+function liftCurtain() { curtain("", false); if (firstRun) setTimeout(openCustom, 900); }
+if (TVMODE) {
+  css($("#opening"), "transition", "none"); css($("#opening"), "opacity", ".995");   // not quite opaque, so what's behind still gets drawn
+  warm = 1;
+  const pics = [...document.images, ...DARK.map(d => d.view)].map(im => im.decode().catch(() => {}));
+  Promise.race([Promise.all(pics), new Promise(r => setTimeout(r, 5000))]).then(() => {
+    warmPlan = [...hold(1, 12), ...hold(2, 12), ...hold(3, 12), ...hold(0, 10), ...hold(section, 8)];
+    warm = 0;
+  });
+}
+// the planets take a moment to paint; the first one before anything shows, the rest after
+renderPlanet(PLANETS[ship.planet]);
+requestAnimationFrame(frame);
+setTimeout(() => PLANETS.forEach(p => p.img || renderPlanet(p)), 300);
+if (!TVMODE && firstRun) setTimeout(openCustom, 600);             // in a browser there's no warm-up curtain
+</script>
+</body>
+</html>
