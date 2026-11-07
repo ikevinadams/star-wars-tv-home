@@ -135,7 +135,7 @@
   #custom .h { font-size: 54px; font-weight: 200; letter-spacing: .04em; color: #e8f6ff; }
   #custom .sub { font-size: 23px; opacity: .7; margin-top: 12px; letter-spacing: .02em; }
   #custom .lab { margin-top: 34px; font-size: 17px; font-weight: 500; letter-spacing: .34em; text-transform: uppercase; color: #ffd2a0; }
-  #custom .grid { margin-top: 16px; height: 412px; overflow: hidden; padding: 2px 6px; margin-left: -6px; }
+  #custom .grid { margin-top: 16px; height: 424px; overflow: hidden; padding: 2px 6px; margin-left: -6px; }
   #custom .rows { display: grid; grid-template-columns: repeat(6, 254px); gap: 18px; transition: transform .25s; }
   #custom .tile { position: relative; height: 124px; border-radius: 12px; background: rgba(143,220,255,.05); border: 2px solid rgba(143,220,255,.16);
                   overflow: hidden; transition: transform .15s, box-shadow .15s; }
@@ -1100,9 +1100,9 @@ function drawCustom() {
     el.classList.toggle("sel", n >= 0); el.querySelector(".n").textContent = n >= 0 ? n + 1 : "";
     el.classList.toggle("foc", custom.zone === 0 && custom.gi === i);
   });
-  const row = Math.floor(custom.gi / COLS);                   // three rows show; the grid scrolls to keep the focus in view
+  const row = Math.floor(custom.gi / COLS);                   // three rows show; the grid scrolls a row (a tile with its border, and the gap) at a time
   custom.scroll = clamp(custom.scroll || 0, row - 2, row);
-  $("#custom .rows").style.transform = `translateY(${-custom.scroll * 142}px)`;
+  $("#custom .rows").style.transform = `translateY(${-custom.scroll * 146}px)`;
   custom.pills = filmChoices();
   if (!custom.pills.some(p => p[0] === custom.films)) custom.films = custom.pills[0][0];
   $("#custom .films").innerHTML = custom.pills.map(([v, l], i) =>
